@@ -44,11 +44,6 @@ const supabase = createClient(
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Récupère l'utilisateur depuis Supabase, le crée s'il n'existe pas.
- * @param {import('discord.js').GuildMember} member
- * @returns {Promise<Object>} user row
- */
 async function getOrCreateUser(member) {
   const { data: existing, error: fetchError } = await supabase
     .from('users')
@@ -74,13 +69,7 @@ async function getOrCreateUser(member) {
   return created;
 }
 
-/**
- * Vérifie si l'utilisateur a déjà gagné un crédit "result" aujourd'hui (UTC).
- * @param {string} userId — UUID interne (pas le discord_id)
- * @returns {Promise<boolean>}
- */
 async function hasResultCreditToday(userId) {
-  // Début de la journée UTC
   const todayUTC = new Date();
   todayUTC.setUTCHours(0, 0, 0, 0);
 
@@ -96,11 +85,6 @@ async function hasResultCreditToday(userId) {
   return data.length > 0;
 }
 
-/**
- * Envoie un DM à un utilisateur (échoue silencieusement si DM bloqués).
- * @param {import('discord.js').User} user
- * @param {string} content
- */
 async function sendDM(user, content) {
   try {
     await user.send(content);
@@ -122,7 +106,6 @@ discord.once(Events.ClientReady, (c) => {
 
 // ─── Événement : nouveau message ─────────────────────────────────────────────
 discord.on(Events.MessageCreate, async (message) => {
-  // Ignorer les bots et les messages hors serveur
   if (message.author.bot)    return;
   if (!message.guild)        return;
   if (!message.member)       return;
@@ -132,7 +115,6 @@ discord.on(Events.MessageCreate, async (message) => {
   // ── Salon résultats ──────────────────────────────────────────────────────────
   if (channelId === CHANNEL_RESULTS_ID) {
     try {
-      // Vérifier la présence d'une image
       const hasImage = message.attachments.some((att) => {
         if (!att.contentType) return false;
         return att.contentType.startsWith('image/');
@@ -153,7 +135,6 @@ discord.on(Events.MessageCreate, async (message) => {
       const alreadyToday = await hasResultCreditToday(user.id);
 
       if (alreadyToday) {
-        // Déjà reçu un crédit aujourd'hui
         await message.react('⏳');
         await sendDM(
           message.author,
@@ -163,7 +144,6 @@ discord.on(Events.MessageCreate, async (message) => {
         return;
       }
 
-      // Attribuer +1 crédit
       const { error: updateError } = await supabase
         .from('users')
         .update({
@@ -190,7 +170,7 @@ discord.on(Events.MessageCreate, async (message) => {
         message.author,
         `🎉 Bravo **${message.author.username}** ! **+1 crédit** ajouté à ta cagnotte.\n` +
         `💰 Solde actuel : **${user.credits + 1} crédit(s)**\n\n` +
-        `Atteins 10 crédits pour demander ton bon Temu de 10€ sur le site !`
+        `Atteins 20 crédits pour demander ton bon Temu de 10€ sur le site !`
       );
 
       console.log(`✅ +1 crédit attribué à ${message.author.username} (solde: ${user.credits + 1})`);
@@ -206,7 +186,6 @@ discord.on(Events.MessageCreate, async (message) => {
     try {
       const user = await getOrCreateUser(message.member);
 
-      // 1. Vérifier la présence d'une pièce jointe vidéo
       const hasVideo = message.attachments.some((att) => {
         if (!att.contentType) return false;
         return att.contentType.startsWith('video/');
@@ -223,7 +202,6 @@ discord.on(Events.MessageCreate, async (message) => {
         return;
       }
 
-      // 2. Vérifier si le bonus a déjà été accordé
       if (user.testimonial_done) {
         await message.react('⏳');
         await sendDM(
@@ -235,7 +213,6 @@ discord.on(Events.MessageCreate, async (message) => {
         return;
       }
 
-      // 3. Attribuer +10 crédits + marquer testimonial_done
       const { error: updateError } = await supabase
         .from('users')
         .update({
@@ -263,9 +240,9 @@ discord.on(Events.MessageCreate, async (message) => {
         message.author,
         `🏆 Témoignage validé ! **+10 crédits** offerts, ${message.author.username} !\n` +
         `💰 Solde actuel : **${user.credits + 10} crédit(s)**\n\n` +
-        `${user.credits + 10 >= 10
+        `${user.credits + 10 >= 20
           ? '🎁 Tu peux maintenant demander ton bon Temu de 10€ sur le site !'
-          : `Il te manque encore ${10 - (user.credits + 10)} crédit(s) pour demander un retrait.`
+          : `Il te manque encore ${20 - (user.credits + 10)} crédit(s) pour demander un retrait.`
         }`
       );
 
