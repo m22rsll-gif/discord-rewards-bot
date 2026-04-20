@@ -132,6 +132,23 @@ discord.on(Events.MessageCreate, async (message) => {
   // ── Salon résultats ──────────────────────────────────────────────────────────
   if (channelId === CHANNEL_RESULTS_ID) {
     try {
+      // Vérifier la présence d'une image
+      const hasImage = message.attachments.some((att) => {
+        if (!att.contentType) return false;
+        return att.contentType.startsWith('image/');
+      });
+
+      if (!hasImage) {
+        await message.react('❌');
+        await sendDM(
+          message.author,
+          '❌ Tu dois envoyer une **photo** de ton résultat pour gagner un crédit.\n' +
+          'Joins une image directement dans ton message. 📸'
+        );
+        console.log(`❌ Pas d'image dans le message de ${message.author.username}`);
+        return;
+      }
+
       const user = await getOrCreateUser(message.member);
       const alreadyToday = await hasResultCreditToday(user.id);
 
