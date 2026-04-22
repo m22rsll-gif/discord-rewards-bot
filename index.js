@@ -9,7 +9,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const { createClient } = require('@supabase/supabase-js');
 
-// ─── Validation des variables d'environnement ─────────────────────────────────
+// ─── Validation des variables d'environnement ────────────────────────────────────────────────
 const REQUIRED_ENV = [
   'DISCORD_TOKEN',
   'SUPABASE_URL',
@@ -27,7 +27,7 @@ for (const key of REQUIRED_ENV) {
 const CHANNEL_RESULTS_ID      = process.env.CHANNEL_RESULTS_ID;
 const CHANNEL_TESTIMONIALS_ID = process.env.CHANNEL_TESTIMONIALS_ID;
 
-// ─── Clients ─────────────────────────────────────────────────────────────────
+// ─── Clients ─────────────────────────────────────────────────────────────────────────────────
 const discord = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -42,8 +42,13 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Récupère l'utilisateur depuis Supabase, le crée s'il n'existe pas.
+ * @param {import('discord.js').GuildMember} member
+ * @returns {Promise<Object>} user row
+ */
 async function getOrCreateUser(member) {
   const { data: existing, error: fetchError } = await supabase
     .from('users')
@@ -65,10 +70,15 @@ async function getOrCreateUser(member) {
     .single();
 
   if (insertError) throw new Error(`Supabase insert error: ${insertError.message}`);
-  console.log(`👤 Nouvel utilisateur enregistré : ${member.user.username} (${member.id})`);
+  console.log(`👥 Nouvel utilisateur enregistré : ${member.user.username} (${member.id})`);
   return created;
 }
 
+/**
+ * Vérifie si l'utilisateur a déjà gagné un crédit "result" aujourd'hui (UTC).
+ * @param {string} userId — UUID interne (pas le discord_id)
+ * @returns {Promise<boolean>}
+ */
 async function hasResultCreditToday(userId) {
   const todayUTC = new Date();
   todayUTC.setUTCHours(0, 0, 0, 0);
@@ -85,6 +95,11 @@ async function hasResultCreditToday(userId) {
   return data.length > 0;
 }
 
+/**
+ * Envoie un DM à un utilisateur (échoue silencieusement si DM bloqués).
+ * @param {import('discord.js').User} user
+ * @param {string} content
+ */
 async function sendDM(user, content) {
   try {
     await user.send(content);
@@ -93,10 +108,10 @@ async function sendDM(user, content) {
   }
 }
 
-// ─── Événement : bot prêt ─────────────────────────────────────────────────────
+// ─── Événement : bot prêt ───────────────────────────────────────────────────────────────────
 discord.once(Events.ClientReady, (c) => {
   console.log('');
-  console.log('╔══════════════════════════════════════════╗');
+  console.log('╬══════════════════════════════════════════╗');
   console.log(`║  ✅ Bot connecté : ${c.user.tag.padEnd(22)}║`);
   console.log(`║  📢 Salon résultats    : ${CHANNEL_RESULTS_ID.slice(-8).padEnd(16)}║`);
   console.log(`║  📢 Salon témoignages : ${CHANNEL_TESTIMONIALS_ID.slice(-8).padEnd(16)}║`);
@@ -104,7 +119,7 @@ discord.once(Events.ClientReady, (c) => {
   console.log('');
 });
 
-// ─── Événement : nouveau message ─────────────────────────────────────────────
+// ─── Événement : nouveau message ──────────────────────────────────────────────────────────────────────
 discord.on(Events.MessageCreate, async (message) => {
   if (message.author.bot)    return;
   if (!message.guild)        return;
@@ -112,7 +127,7 @@ discord.on(Events.MessageCreate, async (message) => {
 
   const channelId = message.channelId;
 
-  // ── Salon résultats ──────────────────────────────────────────────────────────
+  // ── Salon résultats ──────────────────────────────────────────────────────────────────────────────
   if (channelId === CHANNEL_RESULTS_ID) {
     try {
       const hasImage = message.attachments.some((att) => {
@@ -138,7 +153,7 @@ discord.on(Events.MessageCreate, async (message) => {
         await message.react('⏳');
         await sendDM(
           message.author,
-          '⏳ Tu as déjà gagné ton crédit aujourd\'hui. Reviens demain pour en gagner un nouveau ! 📅'
+          "⏳ Tu as déjà gagné ton crédit aujourd'hui. Reviens demain pour en gagner un nouveau ! 📅"
         );
         console.log(`⏳ Crédit déjà attribué aujourd'hui à : ${message.author.username}`);
         return;
@@ -181,7 +196,7 @@ discord.on(Events.MessageCreate, async (message) => {
     return;
   }
 
-  // ── Salon témoignages ────────────────────────────────────────────────────────
+  // ── Salon témoignages ──────────────────────────────────────────────────────────────────────────────
   if (channelId === CHANNEL_TESTIMONIALS_ID) {
     try {
       const user = await getOrCreateUser(message.member);
@@ -206,7 +221,7 @@ discord.on(Events.MessageCreate, async (message) => {
         await message.react('⏳');
         await sendDM(
           message.author,
-          '⏳ Tu as déjà reçu ton bonus témoignage (**+10 crédits**).\n' +
+          '⏳ Tu as déjà reçu ton bonus témoignage (**+15 crédits**).\n' +
           'Ce bonus est accordé une seule fois par compte. 😊'
         );
         console.log(`⏳ Bonus témoignage déjà accordé à ${message.author.username}`);
@@ -216,8 +231,8 @@ discord.on(Events.MessageCreate, async (message) => {
       const { error: updateError } = await supabase
         .from('users')
         .update({
-          credits:         user.credits + 10,
-          total_earned:    user.total_earned + 10,
+          credits:          user.credits + 15,
+          total_earned:     user.total_earned + 15,
           testimonial_done: true,
         })
         .eq('id', user.id);
@@ -229,7 +244,7 @@ discord.on(Events.MessageCreate, async (message) => {
         .insert({
           user_id:            user.id,
           type:               'testimonial',
-          credits:            10,
+          credits:            15,
           discord_message_id: message.id,
         });
 
@@ -238,15 +253,15 @@ discord.on(Events.MessageCreate, async (message) => {
       await message.react('✅');
       await sendDM(
         message.author,
-        `🏆 Témoignage validé ! **+10 crédits** offerts, ${message.author.username} !\n` +
-        `💰 Solde actuel : **${user.credits + 10} crédit(s)**\n\n` +
-        `${user.credits + 10 >= 20
+        `🏆 Témoignage validé ! **+15 crédits** offerts, ${message.author.username} !\n` +
+        `💰 Solde actuel : **${user.credits + 15} crédit(s)**\n\n` +
+        `${user.credits + 15 >= 20
           ? '🎁 Tu peux maintenant demander ton bon Temu de 10€ sur le site !'
-          : `Il te manque encore ${20 - (user.credits + 10)} crédit(s) pour demander un retrait.`
+          : `Il te manque encore ${20 - (user.credits + 15)} crédit(s) pour demander un retrait.`
         }`
       );
 
-      console.log(`✅ +10 crédits (témoignage) attribués à ${message.author.username} (solde: ${user.credits + 10})`);
+      console.log(`✅ +15 crédits (témoignage) attribués à ${message.author.username} (solde: ${user.credits + 15})`);
 
     } catch (err) {
       console.error(`❌ Erreur salon témoignages [${message.author.username}]:`, err.message);
@@ -255,7 +270,7 @@ discord.on(Events.MessageCreate, async (message) => {
   }
 });
 
-// ─── Gestion des erreurs non capturées ───────────────────────────────────────
+// ─── Gestion des erreurs non capturées ────────────────────────────────────────────────────────────
 discord.on(Events.Error, (err) => {
   console.error('❌ Erreur Discord :', err);
 });
@@ -264,5 +279,5 @@ process.on('unhandledRejection', (reason) => {
   console.error('❌ Promesse rejetée :', reason);
 });
 
-// ─── Connexion ────────────────────────────────────────────────────────────────
+// ─── Connexion ────────────────────────────────────────────────────────────────────────────────────
 discord.login(process.env.DISCORD_TOKEN);
